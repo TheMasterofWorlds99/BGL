@@ -3,7 +3,7 @@
 #include <iostream>
 
 // Standalone main for the 3D (bunnies) demo. Build & run this demo alone:
-//   cmake --build build && ./build/3DDemo
+//   cmake --build build && ./build/vulkanEngine
 int main() {
   std::cout << "3D test!\n";
 

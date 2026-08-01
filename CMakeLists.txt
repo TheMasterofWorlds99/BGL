@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(triangle VERSION 0.1.0 LANGUAGES CXX C)
+project(BGL1 VERSION 0.1.0 LANGUAGES CXX C)
 
 # Default to an optimized build. Without this the sim runs ~40x slower than it
 # should (GCC defaults to -O0). Override anytime with -DCMAKE_BUILD_TYPE=Debug
@@ -65,10 +65,9 @@ FetchContent_MakeAvailable(
 )
 
 # ----------------------------------------------------------------
-# The engine library
+# The engine library — BGL1 (Bendy's Graphics Library)
 # ----------------------------------------------------------------
-# TODO: rename "vulkanEngine" to the library's actual name once it's decided.
-add_library(vulkanEngine STATIC
+add_library(BGL1 STATIC
     src/vkInit.cpp
     src/engine.cpp
     src/renderer.cpp
@@ -81,25 +80,25 @@ add_library(vulkanEngine STATIC
     src/volkVma.cpp
 )
 
-target_include_directories(vulkanEngine
+target_include_directories(BGL1
     PUBLIC
         ${vma_SOURCE_DIR}/include
     PRIVATE
         ${slang_SOURCE_DIR}/include
 )
 
-target_compile_definitions(vulkanEngine
+target_compile_definitions(BGL1
     PUBLIC
         GLFW_INCLUDE_NONE
         VMA_STATIC_VULKAN_FUNCTIONS=0
         VMA_DYNAMIC_VULKAN_FUNCTIONS=1
 )
 
-target_compile_features(vulkanEngine PUBLIC cxx_std_20)
+target_compile_features(BGL1 PUBLIC cxx_std_20)
 
-target_compile_options(vulkanEngine PRIVATE -O2)
+target_compile_options(BGL1 PRIVATE -O2)
 
-target_link_libraries(vulkanEngine
+target_link_libraries(BGL1
     PUBLIC
         glfw
         volk
@@ -111,16 +110,17 @@ target_link_libraries(vulkanEngine
 # ----------------------------------------------------------------
 # Demo executables — each is a standalone app with its own main, so they
 # also serve as examples of using the library from your own project.
+# vulkanEngine is the flagship executable (the 3D bunny demo).
 # ----------------------------------------------------------------
 
-add_executable(3DDemo src/demos/3DDemo.cpp src/demos/3DDemoMain.cpp)
-target_link_libraries(3DDemo PRIVATE vulkanEngine)
+add_executable(vulkanEngine src/demos/3DDemo.cpp src/demos/3DDemoMain.cpp)
+target_link_libraries(vulkanEngine PRIVATE BGL1)
 
 add_executable(funDemo src/demos/funDemo.cpp src/demos/funDemoMain.cpp)
-target_link_libraries(funDemo PRIVATE vulkanEngine)
+target_link_libraries(funDemo PRIVATE BGL1)
 
 add_executable(triangleDemo src/demos/triangleDemo.cpp src/demos/triangleDemoMain.cpp)
-target_link_libraries(triangleDemo PRIVATE vulkanEngine)
+target_link_libraries(triangleDemo PRIVATE BGL1)
 
 add_executable(windowOrbitDemo src/demos/windowOrbitDemo.cpp src/demos/windowOrbitDemoMain.cpp)
-target_link_libraries(windowOrbitDemo PRIVATE vulkanEngine)
+target_link_libraries(windowOrbitDemo PRIVATE BGL1)
