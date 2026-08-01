@@ -2,11 +2,11 @@
 
 /*
 
-   BGL1.hpp — the umbrella header for Bendy's Graphics Library (BGL1).
+   BGL.hpp — the umbrella header for Bendy's Graphics Library (BGL).
 
    Include this single header to get the whole library:
 
-       #include "BGL1.hpp"
+       #include "BGL.hpp"
 
    The individual headers are also available if you'd rather pull in only
    what you need (e.g. #include "camera.hpp").

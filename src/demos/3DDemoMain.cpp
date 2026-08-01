@@ -1,6 +1,6 @@
 // Including the library is a single header. The demo's own header pulls in
 // run() — everything else (Engine, initEngine, cleanupEngine) comes from BGL1.
-#include "../../include/BGL1.hpp"
+#include "../../include/BGL.hpp"
 #include "../../include/demos/3DDemo.hpp"
 #include <iostream>
 

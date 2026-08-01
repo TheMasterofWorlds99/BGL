@@ -1,4 +1,4 @@
-#include "../../include/BGL1.hpp"
+#include "../../include/BGL.hpp"
 #include "../../include/demos/triangleDemo.hpp"
 #include <iostream>
 
