@@ -3,6 +3,7 @@
 #include "../../include/geometry.hpp"
 #include "../../include/renderer.hpp"
 #include "../../include/shaders.hpp"
+#include <iostream>
 
 namespace TriangleDemo {
 

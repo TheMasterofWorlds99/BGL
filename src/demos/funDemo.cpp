@@ -3,6 +3,7 @@
 #include "../../include/geometry.hpp"
 #include "../../include/renderer.hpp"
 #include "../../include/shaders.hpp"
+#include <iostream>
 
 // Must match the PushConstants struct declared in the shader file so we can
 // actually properly send the important data to it

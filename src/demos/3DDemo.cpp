@@ -1,8 +1,10 @@
 #include "../../include/demos/3DDemo.hpp"
 #include "../../include/engine.hpp"
 #include "../../include/geometry.hpp"
+#include "../../include/input.hpp"
 #include "../../include/renderer.hpp"
 #include "../../include/shaders.hpp"
+#include <iostream>
 #include <random>
 
 namespace Demo3D {
@@ -174,7 +176,18 @@ void run(Engine &engine) {
   float previousTime = static_cast<float>(glfwGetTime());
 
   while (demoRunning) {
+    // A new frame begins: advance the timer BEFORE polling events, so key
+    // events get stamped with this frame's number (the ordering rule).
+    tickTimer(engine);
     glfwPollEvents();
+
+    // Smoke test for the input system: Esc closes the window. The key
+    // callback stamps inputStates[ESC] with the current frame during
+    // glfwPollEvents(), and this query matches it — for exactly one frame.
+    if (isInputDownThisFrame(engine, GLFW_KEY_ESCAPE)) {
+      std::cout << "Escape pressed - closing window\n";
+      glfwSetWindowShouldClose(engine.activeWindow->glfwWindow, true);
+    }
 
     if (glfwWindowShouldClose(engine.activeWindow->glfwWindow)) {
       demoRunning = false;

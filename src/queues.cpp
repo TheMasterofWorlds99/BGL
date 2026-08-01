@@ -1,26 +1,21 @@
-#pragma once
-
-// Includes
-#include "engine.hpp"
-#include <cstdint>
+#include "../include/queues.hpp"
+#include "../include/check.hpp"
+#include "../include/engine.hpp"
+#include <vector>
 
 /*
 
-   queues.hpp handles all the code for family queues and commands which will
-   allow us to send well, commands to the GPU so we can draw stuff
+   queues.cpp contains the implementations for queues.hpp — finding the GPU's
+   graphics queue family and allocating command buffers from the engine's
+   command pool.
 
 */
-
-struct QueueFamilyIndices {
-  uint32_t graphicsFamilyIndex = 0;
-  bool foundGraphics = false;
-};
 
 // The GPU has a bunch of queue families that we want to look through. The goal
 // is to find one that allows us to send graphics commands through it. This
 // function simply takes the physical GPU, and searchs through it's queue
 // families to find it
-inline QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
+QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
   // Setup the struct that will hold the anwser to the right queue
   QueueFamilyIndices indicies;
 
@@ -55,7 +50,7 @@ inline QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
 
 // This is a function to create command buffers which we'll send to the GPU to
 // draw stuff
-inline void createCommandBuffers(const Engine &engine, Window &window) {
+void createCommandBuffers(const Engine &engine, Window &window) {
   // Create command buffers for the pool (1 for each frame in flight)
   const VkCommandBufferAllocateInfo cmdBufferAllocationInfo{
       .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
