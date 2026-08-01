@@ -1,5 +1,5 @@
+#include "../../include/BGL1.hpp"
 #include "../../include/demos/funDemo.hpp"
-#include "../../include/vulkanInit/vkInit.hpp"
 #include <iostream>
 
 // Standalone main for the fun demo. Build & run:

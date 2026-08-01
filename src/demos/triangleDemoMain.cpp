@@ -1,5 +1,5 @@
+#include "../../include/BGL1.hpp"
 #include "../../include/demos/triangleDemo.hpp"
-#include "../../include/vulkanInit/vkInit.hpp"
 #include <iostream>
 
 // Standalone main for the triangle demo. Build & run:

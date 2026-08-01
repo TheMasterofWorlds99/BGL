@@ -82,6 +82,7 @@ add_library(BGL1 STATIC
 
 target_include_directories(BGL1
     PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${vma_SOURCE_DIR}/include
     PRIVATE
         ${slang_SOURCE_DIR}/include

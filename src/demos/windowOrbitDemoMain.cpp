@@ -1,5 +1,5 @@
+#include "../../include/BGL1.hpp"
 #include "../../include/demos/windowOrbitDemo.hpp"
-#include "../../include/vulkanInit/vkInit.hpp"
 #include <iostream>
 
 // Standalone main for the window orbit demo (two windows). Build & run:

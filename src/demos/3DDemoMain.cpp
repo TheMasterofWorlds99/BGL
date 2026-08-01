@@ -1,5 +1,7 @@
+// Including the library is a single header. The demo's own header pulls in
+// run() — everything else (Engine, initEngine, cleanupEngine) comes from BGL1.
+#include "../../include/BGL1.hpp"
 #include "../../include/demos/3DDemo.hpp"
-#include "../../include/vulkanInit/vkInit.hpp"
 #include <iostream>
 
 // Standalone main for the 3D (bunnies) demo. Build & run this demo alone:
