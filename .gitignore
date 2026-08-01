@@ -1,0 +1,10 @@
+# Build output (CMake + fetched dependencies live here)
+build/
+
+# Editor/IDE caches
+.cache/
+
+# Common editor noise
+.vscode/
+.idea/
+*.swp
