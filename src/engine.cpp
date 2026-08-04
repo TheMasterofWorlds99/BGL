@@ -1,4 +1,5 @@
 #include "../include/engine.hpp"
+#include "../include/vulkanInit/vkInit.hpp"
 #include "../include/check.hpp"
 #include "../include/memory.hpp"
 
@@ -85,13 +86,26 @@ VkCommandBuffer beginFrameCommandBuffer(const Engine &engine, Window *window) {
   checkVk(vkResetFences(engine.gpu, 1, frameFence),
           "Failed to resest frame fence"); // reset fence for next use
 
-  // Acquire next swapchain image
+  // If the window was resized, rebuild the swapchain BEFORE acquiring, so we
+  // acquire from a swapchain that matches the current surface size.
+  if (windowNeedsResize(window))
+    recreateSwapchain(engine, *window);
+
+  // Acquire next swapchain image. The swapchain can go stale between our size
+  // check above and this call (e.g. an OS-level surface change), in which
+  // case Vulkan returns VK_ERROR_OUT_OF_DATE_KHR — rebuild and retry once.
   VkSemaphore acquiredFlag =
       window->imageAcquiredSemaphore[window->frameInFlightIndex];
-  checkVk(vkAcquireNextImageKHR(engine.gpu, window->swapchain, Timeout,
-                                acquiredFlag, nullptr,
-                                &window->activeImageIndex),
-          "Failed to acquire next swapchain image");
+  VkResult acquireResult = vkAcquireNextImageKHR(
+      engine.gpu, window->swapchain, Timeout, acquiredFlag, nullptr,
+      &window->activeImageIndex);
+  if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR) {
+    recreateSwapchain(engine, *window);
+    acquireResult =
+        vkAcquireNextImageKHR(engine.gpu, window->swapchain, Timeout,
+                              acquiredFlag, nullptr, &window->activeImageIndex);
+  }
+  checkVk(acquireResult, "Failed to acquire next swapchain image");
 
   VkCommandBufferBeginInfo cmdBufferBeginInfo{
       .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -161,8 +175,17 @@ void endFrame(const Engine &engine, Window *window) {
       .pSwapchains = &window->swapchain,
       .pImageIndices = &window->activeImageIndex};
 
-  checkVk(vkQueuePresentKHR(engine.queue, &presentInfo),
-          "Failed to present swapchain image");
+  VkResult presentResult = vkQueuePresentKHR(engine.queue, &presentInfo);
+  if (presentResult == VK_ERROR_OUT_OF_DATE_KHR ||
+      presentResult == VK_SUBOPTIMAL_KHR) {
+    // The swapchain no longer matches the surface (resize happened mid-frame).
+    // This frame's image is stale anyway; rebuild so the NEXT frame acquires
+    // from a fresh swapchain. Wait-idle inside recreateSwapchain makes the
+    // destruction safe even though commands were just submitted.
+    recreateSwapchain(engine, *window);
+  } else {
+    checkVk(presentResult, "Failed to present swapchain image");
+  }
 
   // Update index for next frame
   window->frameInFlightIndex =

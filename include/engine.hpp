@@ -83,6 +83,16 @@ inline uint32_t windowHeight(const Window *window) {
   return static_cast<uint32_t>(height);
 }
 
+// True if the OS framebuffer size no longer matches the swapchain's extent
+// (i.e. the window was resized). Used to trigger swapchain recreation.
+inline bool windowNeedsResize(Window *window) {
+  int width, height;
+  glfwGetFramebufferSize(window->glfwWindow, &width, &height);
+  return width > 0 && height > 0 &&
+         (static_cast<uint32_t>(width) != window->swapchainExtent.width ||
+          static_cast<uint32_t>(height) != window->swapchainExtent.height);
+}
+
 // GPU Features struct for handling the tons of features vulkan can offer
 struct GPUFeatures {
   VkPhysicalDeviceVulkan13Features features13{

@@ -375,6 +375,40 @@ void createSwapChain(const Engine &engine, Window &window) {
           "Failed to create swapchain!");
 }
 
+void recreateSwapchain(const Engine &engine, Window &window) {
+  // Make sure nothing is still using the old images before we destroy them
+  vkDeviceWaitIdle(engine.gpu);
+
+  // Destroy everything tied to the old swapchain (frame-level resources —
+  // command buffers, fences, acquired semaphores — are kept)
+  vkDestroyImageView(engine.gpu, window.depthImageView, nullptr);
+  vmaDestroyImage(engine.allocator, window.depthImage, window.depthAlloc);
+  for (auto imageView : window.imageViews)
+    vkDestroyImageView(engine.gpu, imageView, nullptr);
+  for (auto semaphore : window.presentationReadySemaphore)
+    vkDestroySemaphore(engine.gpu, semaphore, nullptr);
+  vkDestroySwapchainKHR(engine.gpu, window.swapchain, nullptr);
+
+  window.imageViews.clear();
+  window.presentationReadySemaphore.clear();
+
+  // Recreate the swapchain + everything that depends on it
+  createSwapChain(engine, window);
+  createSwapchainImagesAndViews(engine, window);
+  createDepthAndStencilImage(engine, window);
+
+  // Presentation semaphores are one-per-image, so recreate just those (the
+  // frame fences + acquired semaphores from createSyncObjects are untouched)
+  window.presentationReadySemaphore.resize(window.images.size());
+  VkSemaphoreCreateInfo semaphoreInfo{
+      .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+  for (size_t i = 0; i < window.images.size(); i++) {
+    checkVk(vkCreateSemaphore(engine.gpu, &semaphoreInfo, nullptr,
+                              &window.presentationReadySemaphore[i]),
+            "Failed to create presentation semaphore");
+  }
+}
+
 void createSwapchainImagesAndViews(const Engine &engine, Window &window) {
   // First we fgfet the number of swapchain images
   uint32_t imageCount;

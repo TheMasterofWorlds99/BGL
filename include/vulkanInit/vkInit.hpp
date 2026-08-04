@@ -55,6 +55,11 @@ void createSwapChain(const Engine &engine, Window &window);
 // Next we initalize the swapchain images and imageviews
 void createSwapchainImagesAndViews(const Engine &engine, Window &window);
 
+// Rebuild the swapchain (and everything that depends on it) after a window
+// resize or when Vulkan reports the swapchain is out of date. Frame-level
+// resources (command buffers, fences, acquired semaphores) are kept.
+void recreateSwapchain(const Engine &engine, Window &window);
+
 // Function to create the depth image
 void createDepthAndStencilImage(const Engine &engine, Window &window);
 
