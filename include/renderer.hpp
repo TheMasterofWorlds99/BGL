@@ -52,4 +52,5 @@ VkPipeline createComputePipeline(const Engine &engine, VkPipelineLayout layout,
                                  VkShaderModule computeModule);
 
 ComputeKernel createComputeKernel(const Engine &engine, const char *shaderPath,
-                                  uint32_t pushConstantSize = 0);
+                                  uint32_t pushConstantSize = 0,
+                                  const char *entryPointName = "CSMain");

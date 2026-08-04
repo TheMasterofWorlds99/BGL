@@ -1,6 +1,6 @@
 #include "../include/renderer.hpp"
-#include "../include/engine.hpp"
 #include "../include/check.hpp"
+#include "../include/engine.hpp"
 #include <iostream>
 
 /*
@@ -123,8 +123,10 @@ VkPipeline createComputePipeline(const Engine &engine, VkPipelineLayout layout,
 }
 
 ComputeKernel createComputeKernel(const Engine &engine, const char *shaderPath,
-                                  uint32_t pushConstantSize) {
-  VkShaderModule computeModule = compileShader(engine, shaderPath, "CSMain");
+                                  uint32_t pushConstantSize,
+                                  const char *entryPointName) {
+  VkShaderModule computeModule =
+      compileShader(engine, shaderPath, entryPointName);
   VkPipelineLayout layout =
       createComputePipelineLayout(engine, pushConstantSize);
   VkPipeline pipeline = createComputePipeline(engine, layout, computeModule);
