@@ -30,6 +30,16 @@ struct GraphicsShader {
   uint32_t pushConstantSize = 0;
 };
 
+// How the pipeline blends fragments with what's already in the framebuffer.
+// BlendMode::None is opaque (replace); Alpha and Additive both enable
+// blending — the latter is great for glowing particles (overlaps add light
+// instead of covering).
+enum class BlendMode {
+  None,
+  Alpha,
+  Additive,
+};
+
 // This function will allow us to compile the Slang into spir-v and put it in a
 // VkShaderModule
 VkShaderModule compileShader(const Engine &engine, const char *shaderPath,
@@ -70,7 +80,8 @@ VkPipeline createGraphicsPipeline(
     // vertex. Left empty for shaders that don't use instancing.
     const std::vector<VkVertexInputBindingDescription> &instanceBindings = {},
     const std::vector<VkVertexInputAttributeDescription> &instanceAttributes =
-        {});
+        {},
+    BlendMode blendMode = BlendMode::None);
 
 // This function will generate our graphics shader structure
 GraphicsShader createGraphicsShader(
@@ -81,7 +92,8 @@ GraphicsShader createGraphicsShader(
     // shader has no instanced data.
     const std::vector<VkVertexInputBindingDescription> &instanceBindings = {},
     const std::vector<VkVertexInputAttributeDescription> &instanceAttributes =
-        {});
+        {},
+    BlendMode blendMode = BlendMode::None);
 
 // Push function to validate the push constants before actually sending them off
 void push(VkCommandBuffer cmdBuffer, const GraphicsShader &shader,

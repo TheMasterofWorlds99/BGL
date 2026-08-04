@@ -182,7 +182,8 @@ VkPipeline createGraphicsPipeline(
     const Engine &engine, VkPipelineLayout layout, VkShaderModule vertexModule,
     VkShaderModule fragmentModule,
     const std::vector<VkVertexInputBindingDescription> &instanceBindings,
-    const std::vector<VkVertexInputAttributeDescription> &instanceAttributes) {
+    const std::vector<VkVertexInputAttributeDescription> &instanceAttributes,
+    BlendMode blendMode) {
   // We first make the shader stage infos
   VkPipelineShaderStageCreateInfo vertStageInfo{
       .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -266,11 +267,39 @@ VkPipeline createGraphicsPipeline(
       .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
       .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT};
 
-  // Color Blending (Disabled)
+  // Color Blending
   VkPipelineColorBlendAttachmentState colorBlendAttachment{
-      .blendEnable = VK_FALSE,
       .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT};
+
+  switch (blendMode) {
+  case BlendMode::None:
+    colorBlendAttachment.blendEnable = VK_FALSE;
+    break;
+  case BlendMode::Alpha:
+    // src.rgb * src.a + dst.rgb * (1 - src.a) — classic transparency
+    colorBlendAttachment.blendEnable = VK_TRUE;
+    colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    colorBlendAttachment.dstColorBlendFactor =
+        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+    colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    colorBlendAttachment.dstAlphaBlendFactor =
+        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+    break;
+  case BlendMode::Additive:
+    // src + dst — overlaps brighten (glowing particles)
+    colorBlendAttachment.blendEnable = VK_TRUE;
+    colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+    colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+    break;
+  }
+
   VkPipelineColorBlendStateCreateInfo colorBlending{
       .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
       .attachmentCount = 1,
@@ -318,7 +347,8 @@ GraphicsShader createGraphicsShader(
     Engine &engine, const char *shaderPath, uint32_t pushConstantSize,
     VkShaderStageFlags pushConstantStages,
     const std::vector<VkVertexInputBindingDescription> &instanceBindings,
-    const std::vector<VkVertexInputAttributeDescription> &instanceAttributes) {
+    const std::vector<VkVertexInputAttributeDescription> &instanceAttributes,
+    BlendMode blendMode) {
   // Compile slang vertex/fragment shader to spir-v bytecode (and store it in a
   // module)
   VkShaderModule vertexModule = compileShader(engine, shaderPath, "VSMain");
@@ -330,7 +360,7 @@ GraphicsShader createGraphicsShader(
       engine, pushConstantSize, pushConstantStages);
   VkPipeline pipeline =
       createGraphicsPipeline(engine, layout, vertexModule, fragmentModule,
-                             instanceBindings, instanceAttributes);
+                             instanceBindings, instanceAttributes, blendMode);
 
   vkDestroyShaderModule(engine.gpu, vertexModule, nullptr);
   vkDestroyShaderModule(engine.gpu, fragmentModule, nullptr);
