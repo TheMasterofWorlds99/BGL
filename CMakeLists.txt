@@ -49,6 +49,16 @@ FetchContent_Declare(
 )
 
 FetchContent_Declare(
+  imgui
+  GIT_REPOSITORY https://github.com/ocornut/imgui.git
+  GIT_TAG v1.91.8
+)
+FetchContent_GetProperties(imgui)
+if(NOT imgui_POPULATED)
+  FetchContent_Populate(imgui)
+endif()
+
+FetchContent_Declare(
   tinyobjloader
   GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader.git
   GIT_TAG release
@@ -62,6 +72,17 @@ FetchContent_MakeAvailable(
     glm
     slang
     tinyobjloader
+)
+
+# Setup ImGui library
+add_library(imgui STATIC
+  ${imgui_SOURCE_DIR}/imgui.cpp
+  ${imgui_SOURCE_DIR}/imgui_draw.cpp
+  ${imgui_SOURCE_DIR}/imgui_tables.cpp
+  ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+  ${imgui_SOURCE_DIR}/imgui_demo.cpp
+  ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+  ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
 )
 
 # ----------------------------------------------------------------
@@ -78,21 +99,33 @@ add_library(BGL1 STATIC
     src/camera.cpp
     src/queues.cpp
     src/volkVma.cpp
+    src/imgui.cpp
 )
 
 target_include_directories(BGL1
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${vma_SOURCE_DIR}/include
-    PRIVATE
-        ${slang_SOURCE_DIR}/include
+  PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${vma_SOURCE_DIR}/include
+  PRIVATE
+    ${slang_SOURCE_DIR}/include
+)
+
+target_include_directories(imgui
+  PUBLIC
+    ${imgui_SOURCE_DIR}
+    ${imgui_SOURCE_DIR}/backends
 )
 
 target_compile_definitions(BGL1
-    PUBLIC
-        GLFW_INCLUDE_NONE
-        VMA_STATIC_VULKAN_FUNCTIONS=0
-        VMA_DYNAMIC_VULKAN_FUNCTIONS=1
+  PUBLIC
+    GLFW_INCLUDE_NONE
+    VMA_STATIC_VULKAN_FUNCTIONS=0
+    VMA_DYNAMIC_VULKAN_FUNCTIONS=1
+)
+
+target_compile_definitions(imgui
+  PRIVATE
+    IMGUI_IMPL_VULKAN_USE_VOLK
 )
 
 target_compile_features(BGL1 PUBLIC cxx_std_20)
@@ -104,8 +137,15 @@ target_link_libraries(BGL1
         glfw
         volk
         glm::glm
+        imgui
         tinyobjloader
         ${slang_SOURCE_DIR}/lib/libslang.so
+)
+
+target_link_libraries(imgui
+  PUBLIC
+    glfw
+    volk
 )
 
 # ----------------------------------------------------------------
@@ -125,3 +165,6 @@ target_link_libraries(triangleDemo PRIVATE BGL1)
 
 add_executable(windowOrbitDemo src/demos/windowOrbitDemo.cpp src/demos/windowOrbitDemoMain.cpp)
 target_link_libraries(windowOrbitDemo PRIVATE BGL1)
+
+add_executable(galleryDemo src/demos/galleryDemo.cpp src/demos/galleryDemoMain.cpp)
+target_link_libraries(galleryDemo PRIVATE BGL1)

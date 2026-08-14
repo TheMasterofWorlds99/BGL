@@ -157,6 +157,7 @@ void createWindowAndSurface(Engine &engine, const char *title, int32_t width,
 
   glfwSetWindowUserPointer(glfwWindow, &engine);
   glfwSetKeyCallback(glfwWindow, keyCallback);
+  glfwSetMouseButtonCallback(glfwWindow, mouseButtonCallback);
   glfwSetScrollCallback(glfwWindow, scrollCallback);
 
   VkSurfaceKHR surface; // Vulkan abstraction over the native window

@@ -21,5 +21,6 @@
 #include "renderer.hpp"
 #include "input.hpp"
 #include "camera.hpp"
+#include "imgui.hpp"
 #include "check.hpp"
 #include "vulkanInit/vkInit.hpp"

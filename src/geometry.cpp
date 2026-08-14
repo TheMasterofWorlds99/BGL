@@ -62,59 +62,69 @@ GPUMesh loadMeshFromObj(VmaAllocator allocator, const char *path) {
 
   const bool hasFileNormals = !data.attrib.normals.empty();
 
-  // Loop through all shapes in the file
+  // Loop through all shapes in the file. Faces may be triangles, quads or
+  // n-gons; tinyobj reports each face's vertex count in num_face_vertices.
+  // Each face is fan-triangulated (0,1,2), (0,2,3), (0,3,4), ... so a quad
+  // becomes two triangles instead of corrupting the flat index stream.
   for (const auto &shape : data.shapes) {
     const auto &faceIndices = shape.mesh.indices;
+    const auto &faceSizes = shape.mesh.num_face_vertices;
 
-    for (size_t i = 0; i < faceIndices.size(); i += 3) {
-      tinyobj::index_t tri[3] = {faceIndices[i + 0], faceIndices[i + 1],
-                                 faceIndices[i + 2]};
+    size_t i = 0; // Running offset into faceIndices
+    for (size_t face = 0; face < faceSizes.size(); face++) {
+      const uint32_t faceSize = faceSizes[face];
 
-      // Compute face normal for the no-file-normal fallback
-      glm::vec3 p0{data.attrib.vertices[tri[0].vertex_index * 3 + 0],
-                   data.attrib.vertices[tri[0].vertex_index * 3 + 1],
-                   data.attrib.vertices[tri[0].vertex_index * 3 + 2]};
-      glm::vec3 p1{data.attrib.vertices[tri[1].vertex_index * 3 + 0],
-                   data.attrib.vertices[tri[1].vertex_index * 3 + 1],
-                   data.attrib.vertices[tri[1].vertex_index * 3 + 2]};
-      glm::vec3 p2{data.attrib.vertices[tri[2].vertex_index * 3 + 0],
-                   data.attrib.vertices[tri[2].vertex_index * 3 + 1],
-                   data.attrib.vertices[tri[2].vertex_index * 3 + 2]};
-      glm::vec3 faceNormal = glm::normalize(glm::cross(p1 - p0, p2 - p0));
+      for (uint32_t t = 1; t + 1 < faceSize; t++) {
+        tinyobj::index_t tri[3] = {faceIndices[i + 0], faceIndices[i + t],
+                                   faceIndices[i + t + 1]};
 
-      for (int c = 0; c < 3; c++) {
-        uint32_t vertexIndex;
-        auto found = vertexLookup.find(tri[c].vertex_index);
+        // Compute face normal for the no-file-normal fallback
+        glm::vec3 p0{data.attrib.vertices[tri[0].vertex_index * 3 + 0],
+                     data.attrib.vertices[tri[0].vertex_index * 3 + 1],
+                     data.attrib.vertices[tri[0].vertex_index * 3 + 2]};
+        glm::vec3 p1{data.attrib.vertices[tri[1].vertex_index * 3 + 0],
+                     data.attrib.vertices[tri[1].vertex_index * 3 + 1],
+                     data.attrib.vertices[tri[1].vertex_index * 3 + 2]};
+        glm::vec3 p2{data.attrib.vertices[tri[2].vertex_index * 3 + 0],
+                     data.attrib.vertices[tri[2].vertex_index * 3 + 1],
+                     data.attrib.vertices[tri[2].vertex_index * 3 + 2]};
+        glm::vec3 faceNormal = glm::normalize(glm::cross(p1 - p0, p2 - p0));
 
-        if (found != vertexLookup.end()) {
-          vertexIndex = found->second;
-        } else {
-          vertexIndex = static_cast<uint32_t>(vertices.size());
+        for (int c = 0; c < 3; c++) {
+          uint32_t vertexIndex;
+          auto found = vertexLookup.find(tri[c].vertex_index);
 
-          Vertex v{};
-          v.pos = {data.attrib.vertices[tri[c].vertex_index * 3 + 0],
-                   data.attrib.vertices[tri[c].vertex_index * 3 + 1],
-                   data.attrib.vertices[tri[c].vertex_index * 3 + 2]};
-          v.normal = glm::vec3(0.0f); // Accumulate below safely
-          v.uv = glm::vec2(0.0f);
+          if (found != vertexLookup.end()) {
+            vertexIndex = found->second;
+          } else {
+            vertexIndex = static_cast<uint32_t>(vertices.size());
 
-          vertices.push_back(v);
-          vertexLookup.emplace(tri[c].vertex_index, vertexIndex);
+            Vertex v{};
+            v.pos = {data.attrib.vertices[tri[c].vertex_index * 3 + 0],
+                     data.attrib.vertices[tri[c].vertex_index * 3 + 1],
+                     data.attrib.vertices[tri[c].vertex_index * 3 + 2]};
+            v.normal = glm::vec3(0.0f); // Accumulate below safely
+            v.uv = glm::vec2(0.0f);
+
+            vertices.push_back(v);
+            vertexLookup.emplace(tri[c].vertex_index, vertexIndex);
+          }
+
+          // Accumulate this corner's normal (file normal, or the computed face
+          // normal if the file has none) to average at the end.
+          if (hasFileNormals && tri[c].normal_index >= 0) {
+            vertices[vertexIndex].normal +=
+                glm::vec3(data.attrib.normals[tri[c].normal_index * 3 + 0],
+                          data.attrib.normals[tri[c].normal_index * 3 + 1],
+                          data.attrib.normals[tri[c].normal_index * 3 + 2]);
+          } else {
+            vertices[vertexIndex].normal += faceNormal;
+          }
+
+          indices.push_back(vertexIndex);
         }
-
-        // Accumulate this corner's normal (file normal, or the computed face
-        // normal if the file has none) to average at the end.
-        if (hasFileNormals && tri[c].normal_index >= 0) {
-          vertices[vertexIndex].normal +=
-              glm::vec3(data.attrib.normals[tri[c].normal_index * 3 + 0],
-                        data.attrib.normals[tri[c].normal_index * 3 + 1],
-                        data.attrib.normals[tri[c].normal_index * 3 + 2]);
-        } else {
-          vertices[vertexIndex].normal += faceNormal;
-        }
-
-        indices.push_back(vertexIndex);
       }
+      i += faceSize;
     }
   }
 

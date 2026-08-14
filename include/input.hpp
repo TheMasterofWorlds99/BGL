@@ -51,6 +51,10 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action,
 // way to poll scroll, so this is the only path).
 void scrollCallback(GLFWwindow *window, double xOffset, double yOffset);
 
+// GLFW mouse button callback: forwards to ImGui (BGL polls buttons itself in
+// Input::update, so this exists purely to feed the UI).
+void mouseButtonCallback(GLFWwindow *window, int button, int action, int mods);
+
 // True only during the exact frame the input was pressed.
 bool isInputDownThisFrame(const Engine &engine, InputCode inputCode);
 
