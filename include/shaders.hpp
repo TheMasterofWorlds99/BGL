@@ -3,6 +3,7 @@
 // Includes
 #include "engine.hpp"
 #include "memory.hpp"
+#include "texture.hpp"
 #include <cstdint>
 #include <vector>
 #include <volk.h>
@@ -50,9 +51,20 @@ VkShaderModule compileShader(const Engine &engine, const char *shaderPath,
 VkDescriptorSetLayout createStorageBufferDescriptorSetLayout(
     const Engine &engine, VkShaderStageFlags stageFlags, uint32_t binding = 0);
 
+// Create a descriptor set layout with a single sampled-image binding (textures)
+VkDescriptorSetLayout createSampledImageDescriptorSetLayout(
+    const Engine &engine, VkShaderStageFlags stageFlags, uint32_t binding = 0);
+
+// Point the sampled-image descriptor in 'set' at a texture
+void updateSampledImageDescriptorSet(const Engine &engine,
+                                     VkDescriptorSet set,
+                                     const Texture &texture);
+
 // Create a descriptor pool big enough to allocate 'maxSets' sets, where each
-// set holds one storage buffer descriptor
-VkDescriptorPool createDescriptorPool(const Engine &engine, uint32_t maxSets);
+// set holds one descriptor of the given type (storage buffer by default)
+VkDescriptorPool createDescriptorPool(
+    const Engine &engine, uint32_t maxSets,
+    VkDescriptorType type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
 
 // Allocate a single descriptor set out of the pool, matching the given layout
 VkDescriptorSet allocateDescriptorSet(const Engine &engine,
@@ -93,7 +105,9 @@ GraphicsShader createGraphicsShader(
     const std::vector<VkVertexInputBindingDescription> &instanceBindings = {},
     const std::vector<VkVertexInputAttributeDescription> &instanceAttributes =
         {},
-    BlendMode blendMode = BlendMode::None);
+    BlendMode blendMode = BlendMode::None,
+    // Optional descriptor set layout (e.g. a sampled texture)
+    VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE);
 
 // Push function to validate the push constants before actually sending them off
 void push(VkCommandBuffer cmdBuffer, const GraphicsShader &shader,

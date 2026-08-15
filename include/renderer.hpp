@@ -19,7 +19,9 @@ void drawMesh(VkCommandBuffer cmdBuffer, const GPUMesh &mesh,
               // Optional per-instance vertex buffer. Just
               // a plain buffer the CPU writes instance data into every
               // frame
-              const GPUBuffer *instanceBuffer = nullptr);
+              const GPUBuffer *instanceBuffer = nullptr,
+              // Optional descriptor set (e.g. a sampled texture) to bind
+              VkDescriptorSet descriptorSet = VK_NULL_HANDLE);
 
 // -- COMPUTE!!! --
 

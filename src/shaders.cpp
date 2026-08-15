@@ -101,9 +101,30 @@ VkDescriptorSetLayout createStorageBufferDescriptorSetLayout(
   return layout;
 }
 
-VkDescriptorPool createDescriptorPool(const Engine &engine, uint32_t maxSets) {
-  VkDescriptorPoolSize poolSize{.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                .descriptorCount = maxSets};
+// Create a descriptor set layout with a single sampled-image binding (textures)
+VkDescriptorSetLayout createSampledImageDescriptorSetLayout(
+    const Engine &engine, VkShaderStageFlags stageFlags, uint32_t binding) {
+  VkDescriptorSetLayoutBinding layoutBinding{
+      .binding = binding,
+      .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+      .descriptorCount = 1,
+      .stageFlags = stageFlags};
+
+  VkDescriptorSetLayoutCreateInfo layoutInfo{
+      .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+      .bindingCount = 1,
+      .pBindings = &layoutBinding};
+
+  VkDescriptorSetLayout layout;
+  checkVk(
+      vkCreateDescriptorSetLayout(engine.gpu, &layoutInfo, nullptr, &layout),
+      "Failed to create descriptor set layout!");
+  return layout;
+}
+
+VkDescriptorPool createDescriptorPool(const Engine &engine, uint32_t maxSets,
+                                      VkDescriptorType type) {
+  VkDescriptorPoolSize poolSize{.type = type, .descriptorCount = maxSets};
 
   VkDescriptorPoolCreateInfo poolInfo{
       .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
@@ -144,6 +165,25 @@ void updateStorageBufferDescriptorSet(const Engine &engine, VkDescriptorSet set,
                              .descriptorType =
                                  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                              .pBufferInfo = &bufferInfo};
+
+  vkUpdateDescriptorSets(engine.gpu, 1, &write, 0, nullptr);
+}
+
+// Point the sampled-image descriptor in 'set' at a texture
+void updateSampledImageDescriptorSet(const Engine &engine, VkDescriptorSet set,
+                                     const Texture &texture) {
+  VkDescriptorImageInfo imageInfo{.sampler = texture.sampler,
+                                  .imageView = texture.view,
+                                  .imageLayout =
+                                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+
+  VkWriteDescriptorSet write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                             .dstSet = set,
+                             .dstBinding = 0,
+                             .descriptorCount = 1,
+                             .descriptorType =
+                                 VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                             .pImageInfo = &imageInfo};
 
   vkUpdateDescriptorSets(engine.gpu, 1, &write, 0, nullptr);
 }
@@ -348,7 +388,7 @@ GraphicsShader createGraphicsShader(
     VkShaderStageFlags pushConstantStages,
     const std::vector<VkVertexInputBindingDescription> &instanceBindings,
     const std::vector<VkVertexInputAttributeDescription> &instanceAttributes,
-    BlendMode blendMode) {
+    BlendMode blendMode, VkDescriptorSetLayout descriptorSetLayout) {
   // Compile slang vertex/fragment shader to spir-v bytecode (and store it in a
   // module)
   VkShaderModule vertexModule = compileShader(engine, shaderPath, "VSMain");
@@ -357,7 +397,7 @@ GraphicsShader createGraphicsShader(
   // Create pipeline, which holds the compiled code + various settings and
   // layout info
   VkPipelineLayout layout = createGraphicsPipelineLayout(
-      engine, pushConstantSize, pushConstantStages);
+      engine, pushConstantSize, pushConstantStages, descriptorSetLayout);
   VkPipeline pipeline =
       createGraphicsPipeline(engine, layout, vertexModule, fragmentModule,
                              instanceBindings, instanceAttributes, blendMode);

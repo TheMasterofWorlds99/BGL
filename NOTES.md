@@ -33,6 +33,24 @@ debugging time — read these before fighting the same dragons.
   pre-compute a proper normal matrix on the CPU.
 - `column_major` on the matrix declaration does **not** change this — verify
   with `spirv-dis` if unsure.
+- **File-scope `const` globals become unbound uniforms unless `static`.**
+  `const float3 c = ...;` at file scope is a *global shader parameter* — it
+  compiles into a uniform block (descriptor binding) that must be bound, or
+  the shader reads garbage. Add `static` to make it a real compile-time
+  constant. Symptom: colors/values that look like random patterns and change
+  with frame state, and probes that "work" when they avoid the constants.
+  The compiler warns (39019) but only when you read the output.
+- **Sampled textures: use the combined `Sampler2D`, not `Texture2D` +
+  `SamplerState`.** Separate `Texture2D`/`SamplerState` globals lower to
+  *two* SPIR-V bindings (image@0, sampler@1); a `Sampler2D` lowers to one
+  combined binding @0. If the descriptor layout has one
+  `COMBINED_IMAGE_SAMPLER` binding, the separate form mismatches and the
+  shader samples garbage → flat gray screen. Verify with
+  `spirv-dis | grep Binding`.
+- **The shader's descriptor contract must match the pipeline layout** —
+  this is the #1 silent-GPU-error family in BGL (unbound uniforms, binding
+  mismatches). Validation layers catch all of them instantly; keep a Debug
+  build around.
 
 ## GLM + Vulkan
 
@@ -80,6 +98,60 @@ debugging time — read these before fighting the same dragons.
   callbacks or it overwrites BGL's input system. Forward events instead.
 - `RenderDrawData` must be called **inside** the render pass, before
   `vkCmdEndRendering`.
+
+## Textures
+
+**The mental model:** the *image* is the texture (GPU-only, the shader samples
+it); a *staging buffer* is a temporary host-visible bucket for the CPU pixels.
+The GPU copies buffer → image (`vkCmdCopyBufferToImage`) inside a one-shot
+command buffer, with two layout barriers:
+`UNDEFINED → TRANSFER_DST_OPTIMAL` (before the copy) and
+`TRANSFER_DST_OPTIMAL → SHADER_READ_ONLY_OPTIMAL` (before sampling). Wait on a
+fence after the submit. Skip a barrier and you get garbage-or-nothing, silently.
+
+**BGL texture stack:** `Texture { image, alloc, view, sampler, w, h }` +
+`createTexture`/`destroyTexture` (src/texture.cpp), descriptor helpers
+`createSampledImageDescriptorSetLayout` / `updateSampledImageDescriptorSet`
+(combined image sampler), `createDescriptorPool` takes a descriptor type,
+`createGraphicsShader(..., descriptorSetLayout)` and
+`drawMesh(..., descriptorSet)` bind the set. The proof demo is
+`textureTest` (checkerboard quad).
+
+### The gray-screen saga (three separate bugs, each silent)
+
+1. **Shader/descriptor contract mismatch.** The shader declared `Texture2D` +
+   `SamplerState` *separately* — Slang lowered them to **two bindings**
+   (image@0, sampler@1), but the layout had one `COMBINED_IMAGE_SAMPLER`
+   binding. The sampler read nothing → flat gray. Fix: use the combined
+   `Sampler2D` (one binding). *Every shader's bindings must match its
+   pipeline's descriptor set layout — this is the #1 silent-GPU-error family.*
+2. **Hand-built mesh wound wrong for Vulkan.** NDC y is up, but the
+   framebuffer is y-down, so the viewport transform *reverses winding*: a
+   quad wound CCW in NDC appears CW on screen → back-face culled under
+   `CullBackFace=true` + CCW-front. `createTriangleTestMesh` is wound
+   correctly (renders); my quad wasn't. Fix: wind CW-in-NDC (e.g. indices
+   `{0,2,1, 0,3,2}`). **Caveat: the "culling isn't it" test was run against
+   a broken shader and proved nothing — culling tests only mean something
+   with a working shader.**
+3. **Red herring:** the "vertex attribute at location N not consumed by
+   vertex shader" validation error is *not* fatal — the working demos have
+   it (Slang DCEs unused inputs). Don't chase it.
+
+### How to debug silent GPU failures (in order)
+
+1. **Enable validation layers** — this saga's first two bugs were caught
+   instantly by validation; without it they're hours of gray screens. Build
+   with `-DCMAKE_BUILD_TYPE=Debug` (DebugEnabled is compiled out in Release).
+2. **Isolate with a known-good draw** — draw `createTriangleTestMesh` (known
+   to work) next to the suspect to split "draw path" vs "texture path".
+3. **Read the SPIR-V** — `spirv-dis out.spv | grep Binding` reveals the
+   actual descriptor bindings; `grep OpMatrixTimesVector` reveals mul
+   semantics.
+4. **Read the pixels** — if you can't see the screen, screenshot + decode
+   the PNG (Python: struct+zlib, unfilter scanlines) to sample actual
+   framebuffer colors. This ended the "impossible quadrant colors" mystery
+   (which turned out to be unbound-memory reads from a non-static const).
+
 
 ## Meshes / OBJ
 

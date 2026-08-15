@@ -100,6 +100,7 @@ add_library(BGL1 STATIC
     src/queues.cpp
     src/volkVma.cpp
     src/imgui.cpp
+    src/texture.cpp
 )
 
 target_include_directories(BGL1
@@ -165,6 +166,9 @@ target_link_libraries(triangleDemo PRIVATE BGL1)
 
 add_executable(windowOrbitDemo src/demos/windowOrbitDemo.cpp src/demos/windowOrbitDemoMain.cpp)
 target_link_libraries(windowOrbitDemo PRIVATE BGL1)
+
+add_executable(textureTest src/demos/textureTest.cpp src/demos/textureTestMain.cpp)
+target_link_libraries(textureTest PRIVATE BGL1)
 
 add_executable(galleryDemo src/demos/galleryDemo.cpp src/demos/galleryDemoMain.cpp)
 target_link_libraries(galleryDemo PRIVATE BGL1)

@@ -13,10 +13,16 @@
 void drawMesh(VkCommandBuffer cmdBuffer, const GPUMesh &mesh,
               const GraphicsShader &shader, uint32_t instanceCount,
               const void *pushData, uint32_t pushSize,
-              const GPUBuffer *instanceBuffer) {
+              const GPUBuffer *instanceBuffer, VkDescriptorSet descriptorSet) {
   // Bind pipeline
   vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                     shader.pipeline);
+  // Bind the descriptor set (e.g. a texture) if the shader uses one
+  if (descriptorSet != VK_NULL_HANDLE) {
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            shader.pipelineLayout, 0, 1, &descriptorSet, 0,
+                            nullptr);
+  }
   if (pushData && pushSize > 0) {
     push(cmdBuffer, shader, pushSize, pushData);
   }
