@@ -78,8 +78,9 @@ void runCompute1D(VkCommandBuffer cmdBuffer, const ComputeKernel &compute,
   cmdComputeMemoryBarrier(cmdBuffer);
 }
 
-VkPipelineLayout createComputePipelineLayout(const Engine &engine,
-                                             uint32_t pushConstantSize) {
+VkPipelineLayout createComputePipelineLayout(
+    const Engine &engine, uint32_t pushConstantSize,
+    const std::vector<VkDescriptorSetLayout> &setLayouts) {
   if (pushConstantSize > engine.maxPushConstantSize) {
     std::cerr << "ERROR: Requested " << pushConstantSize
               << " bytes of push constants, but GPU supports max "
@@ -94,8 +95,8 @@ VkPipelineLayout createComputePipelineLayout(const Engine &engine,
 
   VkPipelineLayoutCreateInfo layoutInfo{
       .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-      .setLayoutCount = 0,
-      .pSetLayouts = nullptr,
+      .setLayoutCount = static_cast<uint32_t>(setLayouts.size()),
+      .pSetLayouts = setLayouts.empty() ? nullptr : setLayouts.data(),
       .pushConstantRangeCount = pushConstantSize > 0 ? 1u : 0u,
       .pPushConstantRanges =
           pushConstantSize > 0 ? &pushConstantRange : nullptr};
@@ -130,11 +131,12 @@ VkPipeline createComputePipeline(const Engine &engine, VkPipelineLayout layout,
 
 ComputeKernel createComputeKernel(const Engine &engine, const char *shaderPath,
                                   uint32_t pushConstantSize,
-                                  const char *entryPointName) {
+                                  const char *entryPointName,
+                                  const std::vector<VkDescriptorSetLayout> &setLayouts) {
   VkShaderModule computeModule =
       compileShader(engine, shaderPath, entryPointName);
   VkPipelineLayout layout =
-      createComputePipelineLayout(engine, pushConstantSize);
+      createComputePipelineLayout(engine, pushConstantSize, setLayouts);
   VkPipeline pipeline = createComputePipeline(engine, layout, computeModule);
   vkDestroyShaderModule(engine.gpu, computeModule, nullptr);
 

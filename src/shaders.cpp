@@ -154,17 +154,32 @@ VkDescriptorSet allocateDescriptorSet(const Engine &engine,
 }
 
 void updateStorageBufferDescriptorSet(const Engine &engine, VkDescriptorSet set,
-                                      const GPUBuffer &buffer) {
+                                      const GPUBuffer &buffer, uint32_t binding) {
   VkDescriptorBufferInfo bufferInfo{
       .buffer = buffer.vkBuffer, .offset = 0, .range = buffer.sizeBytes};
 
   VkWriteDescriptorSet write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                              .dstSet = set,
-                             .dstBinding = 0,
+                             .dstBinding = binding,
                              .descriptorCount = 1,
                              .descriptorType =
                                  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                              .pBufferInfo = &bufferInfo};
+
+  vkUpdateDescriptorSets(engine.gpu, 1, &write, 0, nullptr);
+}
+
+void updateStorageImageDescriptorSet(const Engine &engine, VkDescriptorSet set,
+                                     uint32_t binding, VkImageView imageView,
+                                     VkImageLayout layout) {
+  VkDescriptorImageInfo imageInfo{.imageView = imageView, .imageLayout = layout};
+
+  VkWriteDescriptorSet write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                             .dstSet = set,
+                             .dstBinding = binding,
+                             .descriptorCount = 1,
+                             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                             .pImageInfo = &imageInfo};
 
   vkUpdateDescriptorSets(engine.gpu, 1, &write, 0, nullptr);
 }

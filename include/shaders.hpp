@@ -74,7 +74,14 @@ VkDescriptorSet allocateDescriptorSet(const Engine &engine,
 // Point the storage buffer descriptor in 'set' at a GPU buffer, so the shader
 // can read its contents
 void updateStorageBufferDescriptorSet(const Engine &engine, VkDescriptorSet set,
-                                      const GPUBuffer &buffer);
+                                      const GPUBuffer &buffer,
+                                      uint32_t binding = 0);
+
+// Point a storage-image descriptor at an image view (e.g. a compute write
+// target). No sampler — storage images are raw access.
+void updateStorageImageDescriptorSet(const Engine &engine, VkDescriptorSet set,
+                                     uint32_t binding, VkImageView imageView,
+                                     VkImageLayout layout = VK_IMAGE_LAYOUT_GENERAL);
 
 // Create the Pipeline Layout (Empty for now, used later for pushing
 // matrices/textures to GPU)

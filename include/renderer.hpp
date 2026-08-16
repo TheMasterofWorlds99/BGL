@@ -4,6 +4,7 @@
 #include "geometry.hpp"
 #include "shaders.hpp"
 #include <cstdint>
+#include <vector>
 #include <volk.h>
 
 /*
@@ -47,12 +48,14 @@ void runCompute1D(VkCommandBuffer cmdBuffer, const ComputeKernel &compute,
                   uint32_t pushSize = 0);
 
 // Now we create the functions to handle the create compute pipeline!
-VkPipelineLayout createComputePipelineLayout(const Engine &engine,
-                                             uint32_t pushConstantSize = 0);
+VkPipelineLayout createComputePipelineLayout(
+    const Engine &engine, uint32_t pushConstantSize = 0,
+    const std::vector<VkDescriptorSetLayout> &setLayouts = {});
 
 VkPipeline createComputePipeline(const Engine &engine, VkPipelineLayout layout,
                                  VkShaderModule computeModule);
 
 ComputeKernel createComputeKernel(const Engine &engine, const char *shaderPath,
                                   uint32_t pushConstantSize = 0,
-                                  const char *entryPointName = "CSMain");
+                                  const char *entryPointName = "CSMain",
+                                  const std::vector<VkDescriptorSetLayout> &setLayouts = {});
