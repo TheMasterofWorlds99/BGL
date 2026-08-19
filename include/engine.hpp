@@ -28,6 +28,9 @@ constexpr uint64_t Timeout = UINT64_MAX;
 // Modifiable Settings
 inline bool CullBackFace = true;
 
+// Enum class for the different present modes
+enum class PresentMode { VSync, Immediate, Mailbox };
+
 // Basic Window struct helper for the engine struct
 struct Window {
   GLFWwindow *glfwWindow; // native window
@@ -36,6 +39,18 @@ struct Window {
   VkSwapchainKHR swapchain; // Provides access to images (via presentation
                             // engine) to render to
   VkExtent2D swapchainExtent;
+
+  // The color format the swapchain was created with (set at creation; read
+  // by pipelines so they always match the actual swapchain)
+  VkFormat swapchainFormat = VK_FORMAT_R8G8B8A8_SRGB;
+
+  // MSAA sample count the swapchain/pass were created with (1 = off)
+  VkSampleCountFlagBits MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+
+  // MSAA color target: rendering goes here, then resolves into the swapchain
+  VkImage msaaImage;
+  VkImageView msaaImageView;
+  VmaAllocation msaaAlloc;
 
   std::vector<VkImage> images; // swapchain images
   std::vector<VkImageView> imageViews;
@@ -68,6 +83,14 @@ struct Window {
   // Signalled by gpu once commands have been executed, meaning the cpu can
   // reuse that frame's resources
   std::array<VkFence, MaxFramesInFlight> frameFinishedFence;
+};
+
+// Settings struct to allow for easy modifying of the engine
+struct EngineSettings {
+  PresentMode presentMode = PresentMode::VSync;
+  VkFormat swapchainFormat = VK_FORMAT_R8G8B8A8_SRGB;
+  VkSampleCountFlagBits MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+  bool validation = true;
 };
 
 // Window helpers
@@ -124,6 +147,9 @@ struct KeyState {
 // Engine structure
 struct Engine {
 public:
+  // How the engine was configured at init (present mode, formats, ...)
+  EngineSettings settings;
+
   std::vector<Window>
       windows; // A list of windows that Engine will be able to handle
 

@@ -60,6 +60,31 @@ void updateSampledImageDescriptorSet(const Engine &engine,
                                      VkDescriptorSet set,
                                      const Texture &texture);
 
+// One-call descriptor wrappers: create the layout + pool + set and point it
+// at a buffer/texture, ready to bind. Destroy with the matching destroy.
+struct StorageDescriptor {
+  VkDescriptorSetLayout layout;
+  VkDescriptorPool pool;
+  VkDescriptorSet set;
+};
+
+struct SampledImageDescriptor {
+  VkDescriptorSetLayout layout;
+  VkDescriptorPool pool;
+  VkDescriptorSet set;
+};
+
+StorageDescriptor createStorageDescriptor(Engine &engine,
+                                          VkShaderStageFlags stageFlags,
+                                          const GPUBuffer &buffer);
+
+SampledImageDescriptor createSampledImageDescriptor(
+    Engine &engine, VkShaderStageFlags stageFlags, const Texture &texture);
+
+void destroyStorageDescriptor(Engine &engine, StorageDescriptor &desc);
+void destroySampledImageDescriptor(Engine &engine,
+                                   SampledImageDescriptor &desc);
+
 // Create a descriptor pool big enough to allocate 'maxSets' sets, where each
 // set holds one descriptor of the given type (storage buffer by default)
 VkDescriptorPool createDescriptorPool(

@@ -43,12 +43,22 @@ void viewportAndScissorCmd(VkCommandBuffer cmdBuffer, Window *window) {
 }
 
 void beginRenderPass(VkCommandBuffer cmdBuffer, Window *window, glm::vec4 col) {
+  const bool msaa = window->MSAASamples != VK_SAMPLE_COUNT_1_BIT;
+
   VkRenderingAttachmentInfo colAttachmentInfo{
       .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-      .imageView = window->imageViews[window->activeImageIndex],
+      // With MSAA: render into the MSAA target, resolve into the swapchain.
+      .imageView = msaa ? window->msaaImageView
+                        : window->imageViews[window->activeImageIndex],
       .imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+      .resolveMode = msaa ? VK_RESOLVE_MODE_AVERAGE_BIT : VK_RESOLVE_MODE_NONE,
+      .resolveImageView =
+          msaa ? window->imageViews[window->activeImageIndex] : VK_NULL_HANDLE,
+      .resolveImageLayout =
+          msaa ? VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_UNDEFINED,
       .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-      .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+      .storeOp = msaa ? VK_ATTACHMENT_STORE_OP_DONT_CARE
+                      : VK_ATTACHMENT_STORE_OP_STORE,
       .clearValue{.color = {col.r, col.g, col.b, col.a}}};
 
   // Configure Depth Attachment
@@ -69,6 +79,9 @@ void beginRenderPass(VkCommandBuffer cmdBuffer, Window *window, glm::vec4 col) {
                                 .pDepthAttachment = &depthAttachmentInfo};
 
   swapchainImageBarrierCmd(cmdBuffer, window->images[window->activeImageIndex]);
+  // The MSAA target is transient: its contents start undefined each frame
+  if (msaa)
+    swapchainImageBarrierCmd(cmdBuffer, window->msaaImage);
 
   // Transition the depth image layout
   depthImageBarrierCmd(cmdBuffer, window->depthImage, window->DepthImageFormat);

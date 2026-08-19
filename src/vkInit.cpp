@@ -12,6 +12,9 @@
 #include <limits>
 #include <vector>
 
+// Forward declaration (defined later; used by initEngine)
+static void createMSAAColorImage(const Engine &engine, Window &window);
+
 /*
 
    vkInit.cpp contains the implementations for vkInit.hpp — all the
@@ -67,9 +70,9 @@ static VkDebugUtilsMessengerCreateInfoEXT createDebugMessengerInfo() {
 }
 
 // Functions to gather extensions and grab layers
-static std::vector<const char *> getExtensions() {
+static std::vector<const char *> getExtensions(bool validation) {
   std::vector<const char *> extensions;
-  if (DebugEnabled)
+  if (validation)
     extensions.push_back(
         VK_EXT_DEBUG_UTILS_EXTENSION_NAME); // Add Support for debug messenger
   // Grab count of glfw extensions and send them to a vector to return
@@ -85,10 +88,10 @@ static std::vector<const char *> getExtensions() {
   return extensions;
 }
 
-static std::vector<const char *> getLayers() {
+static std::vector<const char *> getLayers(bool validation) {
   std::vector<const char *> layers;
 
-  if (DebugEnabled) {
+  if (validation) {
     const char *validationName = "VK_LAYER_KHRONOS_validation";
     if (isSupportedLayer(validationName))
       layers.push_back(validationName);
@@ -109,8 +112,9 @@ void createVulkanInstance(Engine &engine) {
   // instance
   VkDebugUtilsMessengerCreateInfoEXT debugMessengerInfo =
       createDebugMessengerInfo();
-  std::vector<const char *> extensions = getExtensions();
-  std::vector<const char *> layers = getLayers();
+  std::vector<const char *> extensions =
+      getExtensions(engine.settings.validation);
+  std::vector<const char *> layers = getLayers(engine.settings.validation);
 
   // Create Vk appInfo and use it in our vulkan instance creation for it's info
   VkApplicationInfo appInfo{.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -134,7 +138,7 @@ void createVulkanInstance(Engine &engine) {
 
   // Use volk's load instance to load the instance (duh)
   volkLoadInstance(engine.vulkanInstance);
-  if (DebugEnabled) {
+  if (engine.settings.validation) {
     checkVk(vkCreateDebugUtilsMessengerEXT(engine.vulkanInstance,
                                            &debugMessengerInfo, nullptr,
                                            &engine.debugMessenger),
@@ -313,6 +317,25 @@ void createSyncObjects(const Engine &engine, Window &window) {
   }
 }
 
+// Pick the requested present mode if the surface supports it; FIFO is the
+// guaranteed fallback (it is always supported).
+static VkPresentModeKHR pickPresentMode(VkPhysicalDevice gpu, VkSurfaceKHR surface,
+                                        PresentMode requested) {
+  uint32_t count = 0;
+  vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &count, nullptr);
+  std::vector<VkPresentModeKHR> modes(count);
+  vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &count, modes.data());
+
+  VkPresentModeKHR want =
+      requested == PresentMode::Immediate ? VK_PRESENT_MODE_IMMEDIATE_KHR
+      : requested == PresentMode::Mailbox  ? VK_PRESENT_MODE_MAILBOX_KHR
+                                           : VK_PRESENT_MODE_FIFO_KHR;
+  for (VkPresentModeKHR m : modes)
+    if (m == want)
+      return want;
+  return VK_PRESENT_MODE_FIFO_KHR; // guaranteed
+}
+
 void createSwapChain(const Engine &engine, Window &window) {
   checkVk(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
               engine.physicalGPU, window.surface, &window.surfaceCapabilities),
@@ -357,19 +380,22 @@ void createSwapChain(const Engine &engine, Window &window) {
   //   guarenteed support
 
   window.swapchainExtent = swapchainExtent;
+  window.swapchainFormat = engine.settings.swapchainFormat;
+  window.MSAASamples = engine.settings.MSAASamples;
 
   VkSwapchainCreateInfoKHR swapchainCreateInfo{
       .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
       .surface = window.surface,
       .minImageCount = window.surfaceCapabilities.minImageCount,
-      .imageFormat = SwapchainImageFormat,
+      .imageFormat = window.swapchainFormat,
       .imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
       .imageExtent = swapchainExtent,
       .imageArrayLayers = 1,
       .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
       .preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
       .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-      .presentMode = VK_PRESENT_MODE_FIFO_KHR};
+      .presentMode = pickPresentMode(engine.physicalGPU, window.surface,
+                                     engine.settings.presentMode)};
 
   checkVk(vkCreateSwapchainKHR(engine.gpu, &swapchainCreateInfo, nullptr,
                                &window.swapchain),
@@ -430,7 +456,7 @@ void createSwapchainImagesAndViews(const Engine &engine, Window &window) {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image = window.images[i],
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = SwapchainImageFormat,
+        .format = window.swapchainFormat,
         .components = {VK_COMPONENT_SWIZZLE_IDENTITY,
                        VK_COMPONENT_SWIZZLE_IDENTITY,
                        VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -502,6 +528,39 @@ static void createDepthImageView(const Engine &engine, Window &window) {
       "Failed to create depth image view");
 }
 
+// The MSAA color target: rendering resolves into the swapchain image
+static void createMSAAColorImage(const Engine &engine, Window &window) {
+  VkImageCreateInfo imageInfo{
+      .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+      .imageType = VK_IMAGE_TYPE_2D,
+      .format = window.swapchainFormat,
+      .extent = getWindowExtent3D(window),
+      .mipLevels = 1,
+      .arrayLayers = 1,
+      .samples = window.MSAASamples,
+      .tiling = VK_IMAGE_TILING_OPTIMAL,
+      .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+               VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
+      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+
+  VmaAllocationCreateInfo allocInfo{
+      .flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
+      .usage = VMA_MEMORY_USAGE_AUTO};
+
+  vmaCreateImage(engine.allocator, &imageInfo, &allocInfo, &window.msaaImage,
+                 &window.msaaAlloc, 0);
+
+  VkImageViewCreateInfo viewInfo{
+      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      .image = window.msaaImage,
+      .viewType = VK_IMAGE_VIEW_TYPE_2D,
+      .format = window.swapchainFormat,
+      .subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}};
+  checkVk(vkCreateImageView(engine.gpu, &viewInfo, nullptr,
+                            &window.msaaImageView),
+          "Failed to create MSAA image view");
+}
+
 void createDepthAndStencilImage(const Engine &engine, Window &window) {
   // Configure the depth (and stencil) image, and alloc te memory for it with
   // vma
@@ -513,7 +572,7 @@ void createDepthAndStencilImage(const Engine &engine, Window &window) {
                               .extent = getWindowExtent3D(window),
                               .mipLevels = 1,
                               .arrayLayers = 1,
-                              .samples = VK_SAMPLE_COUNT_1_BIT,
+                              .samples = window.MSAASamples,
                               .tiling = VK_IMAGE_TILING_OPTIMAL,
                               .usage =
                                   VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
@@ -530,9 +589,11 @@ void createDepthAndStencilImage(const Engine &engine, Window &window) {
 
 // We need to cleanup the window
 static void cleanupWindow(const Engine &engine, Window &window) {
-  // We first destroy the depth images
+  // We first destroy the depth + MSAA images
   vkDestroyImageView(engine.gpu, window.depthImageView, nullptr);
   vmaDestroyImage(engine.allocator, window.depthImage, window.depthAlloc);
+  vkDestroyImageView(engine.gpu, window.msaaImageView, nullptr);
+  vmaDestroyImage(engine.allocator, window.msaaImage, window.msaaAlloc);
 
   // Next destroy the Syncronization objects
   for (size_t i = 0; i < MaxFramesInFlight; i++) {
@@ -558,7 +619,8 @@ static void cleanupWindow(const Engine &engine, Window &window) {
 }
 
 void initEngine(Engine &engine, const char *title, int32_t width,
-                int32_t height, uint32_t windowCount) {
+                int32_t height, uint32_t windowCount,
+                const EngineSettings &settings) {
   createVulkanInstance(engine);
 
   // Create the window(s) — some demos use more than one
@@ -568,12 +630,23 @@ void initEngine(Engine &engine, const char *title, int32_t width,
   // Initalize the GPU, Queues and Swapchains for all windows
   engine.physicalGPU = selectPhysicalDevice(engine);
   createLogicalGPUDeviceAndQueue(engine);
+
+  // Verify the requested MSAA sample count is supported; fall back to 1x
+  VkPhysicalDeviceProperties props;
+  vkGetPhysicalDeviceProperties(engine.physicalGPU, &props);
+  if (!(props.limits.framebufferColorSampleCounts & engine.settings.MSAASamples)) {
+    std::cerr << "MSAA " << engine.settings.MSAASamples
+              << " not supported by this GPU, falling back to 1x\n";
+    engine.settings.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+  }
+
   initVMA(engine);
   createCommandPool(engine);
 
   for (auto &window : engine.windows) {
     createSwapChain(engine, window);
     createSwapchainImagesAndViews(engine, window);
+    createMSAAColorImage(engine, window);
     createDepthAndStencilImage(engine, window);
     createCommandBuffers(engine, window);
     createSyncObjects(engine, window);
@@ -600,7 +673,7 @@ void cleanupEngine(Engine &engine) {
   vkDestroyDevice(engine.gpu, nullptr);
 
   // Destroy Debug Messenger
-  if (DebugEnabled && engine.debugMessenger != VK_NULL_HANDLE) {
+  if (engine.settings.validation && engine.debugMessenger != VK_NULL_HANDLE) {
     vkDestroyDebugUtilsMessengerEXT(engine.vulkanInstance,
                                     engine.debugMessenger, nullptr);
   }

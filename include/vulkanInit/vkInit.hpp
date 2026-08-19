@@ -66,7 +66,8 @@ void createDepthAndStencilImage(const Engine &engine, Window &window);
 // One-stop setup: instance, window(s), GPU, queues, VMA and all per-window
 // swapchain resources. The single call every demo main makes before run().
 void initEngine(Engine &engine, const char *title, int32_t width,
-                int32_t height, uint32_t windowCount = 1);
+                int32_t height, uint32_t windowCount = 1,
+                const EngineSettings &settings = {});
 
 // This function cleans up the entire engine
 void cleanupEngine(Engine &engine);

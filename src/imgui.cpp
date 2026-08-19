@@ -20,7 +20,7 @@ void initImgui(Engine &engine, Window &window) {
       .Queue = engine.queue,
       .MinImageCount = static_cast<uint32_t>(window.images.size()),
       .ImageCount = static_cast<uint32_t>(window.images.size()),
-      .MSAASamples = VK_SAMPLE_COUNT_1_BIT,
+      .MSAASamples = engine.settings.MSAASamples,
       .DescriptorPoolSize = 1000,
       .UseDynamicRendering = true,
   };
@@ -28,7 +28,7 @@ void initImgui(Engine &engine, Window &window) {
   initInfo.PipelineRenderingCreateInfo = {
       .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
       .colorAttachmentCount = 1,
-      .pColorAttachmentFormats = &SwapchainImageFormat,
+      .pColorAttachmentFormats = &engine.activeWindow->swapchainFormat,
       .depthAttachmentFormat =
           window.DepthImageFormat, // must match your render pass
   };

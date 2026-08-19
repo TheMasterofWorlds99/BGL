@@ -203,6 +203,46 @@ void updateSampledImageDescriptorSet(const Engine &engine, VkDescriptorSet set,
   vkUpdateDescriptorSets(engine.gpu, 1, &write, 0, nullptr);
 }
 
+// One-call descriptor wrappers — layout + pool + set + update in a single
+// step. Each descriptor owns its layout/pool; fine for a handful of them.
+StorageDescriptor createStorageDescriptor(Engine &engine,
+                                          VkShaderStageFlags stageFlags,
+                                          const GPUBuffer &buffer) {
+  StorageDescriptor desc{
+      .layout = createStorageBufferDescriptorSetLayout(engine, stageFlags),
+      .pool = createDescriptorPool(engine, 1),
+  };
+  desc.set = allocateDescriptorSet(engine, desc.pool, desc.layout);
+  updateStorageBufferDescriptorSet(engine, desc.set, buffer);
+  return desc;
+}
+
+SampledImageDescriptor createSampledImageDescriptor(
+    Engine &engine, VkShaderStageFlags stageFlags, const Texture &texture) {
+  SampledImageDescriptor desc{
+      .layout =
+          createSampledImageDescriptorSetLayout(engine, stageFlags),
+      .pool = createDescriptorPool(engine, 1,
+                                   VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER),
+  };
+  desc.set = allocateDescriptorSet(engine, desc.pool, desc.layout);
+  updateSampledImageDescriptorSet(engine, desc.set, texture);
+  return desc;
+}
+
+void destroyStorageDescriptor(Engine &engine, StorageDescriptor &desc) {
+  vkDestroyDescriptorPool(engine.gpu, desc.pool, nullptr);
+  vkDestroyDescriptorSetLayout(engine.gpu, desc.layout, nullptr);
+  desc = {};
+}
+
+void destroySampledImageDescriptor(Engine &engine,
+                                   SampledImageDescriptor &desc) {
+  vkDestroyDescriptorPool(engine.gpu, desc.pool, nullptr);
+  vkDestroyDescriptorSetLayout(engine.gpu, desc.layout, nullptr);
+  desc = {};
+}
+
 VkPipelineLayout createGraphicsPipelineLayout(
     const Engine &engine, uint32_t pushConstantSize,
     VkShaderStageFlags pushConstantStages,
@@ -317,10 +357,10 @@ VkPipeline createGraphicsPipeline(
       .viewportCount = 1,
       .scissorCount = 1};
 
-  // Multisampling (Disabled)
+  // Multisampling — follows the engine's MSAA setting (1 = off)
   VkPipelineMultisampleStateCreateInfo multisampling{
       .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-      .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT};
+      .rasterizationSamples = engine.activeWindow->MSAASamples};
 
   // Color Blending
   VkPipelineColorBlendAttachmentState colorBlendAttachment{
@@ -372,7 +412,7 @@ VkPipeline createGraphicsPipeline(
   VkPipelineRenderingCreateInfo pipelineRenderingInfo{
       .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
       .colorAttachmentCount = 1,
-      .pColorAttachmentFormats = &SwapchainImageFormat,
+      .pColorAttachmentFormats = &engine.activeWindow->swapchainFormat,
       .depthAttachmentFormat = engine.activeWindow->DepthImageFormat};
 
   VkGraphicsPipelineCreateInfo pipelineInfo{
