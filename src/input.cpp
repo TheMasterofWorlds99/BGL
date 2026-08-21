@@ -1,4 +1,5 @@
 #include "../include/input.hpp"
+#include <imgui.h>
 #include "imgui_impl_glfw.h"
 #include <cstdint>
 
@@ -10,7 +11,10 @@ InputCode::operator uint32_t() const { return value; }
 static double pendingScroll = 0.0;
 
 void scrollCallback(GLFWwindow *window, double xOffset, double yOffset) {
-  ImGui_ImplGlfw_ScrollCallback(window, xOffset, yOffset);
+  // Only forward to ImGui when it's actually initialized (demos without
+  // ImGui would otherwise crash on uninitialized backend data)
+  if (ImGui::GetCurrentContext())
+    ImGui_ImplGlfw_ScrollCallback(window, xOffset, yOffset);
   (void)window;
   (void)xOffset;
   pendingScroll += yOffset;
@@ -18,7 +22,8 @@ void scrollCallback(GLFWwindow *window, double xOffset, double yOffset) {
 
 void mouseButtonCallback(GLFWwindow *window, int button, int action, int mods) {
   (void)mods;
-  ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
+  if (ImGui::GetCurrentContext())
+    ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
 }
 
 void Input::update(GLFWwindow *window) {
@@ -41,7 +46,9 @@ void Input::update(GLFWwindow *window) {
 
 void keyCallback(GLFWwindow *window, int key, int scancode, int action,
                  int mods) {
-  ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
+  // Only forward to ImGui when it's actually initialized
+  if (ImGui::GetCurrentContext())
+    ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
   (void)scancode;
   (void)mods;
   Engine *engine = static_cast<Engine *>(glfwGetWindowUserPointer(window));

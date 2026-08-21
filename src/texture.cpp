@@ -111,7 +111,7 @@ Texture createTexture(Engine &engine, uint32_t width, uint32_t height,
       .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
       .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
       .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-      .maxLod = 1.0f};
+      .maxLod = 0.0f}; // single-mip textures: never sample a nonexistent mip
   vkCreateSampler(engine.gpu, &samplerInfo, nullptr, &texture.sampler);
 
   return texture;

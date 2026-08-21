@@ -133,6 +133,11 @@ fence after the submit. Skip a barrier and you get garbage-or-nothing, silently.
    `{0,2,1, 0,3,2}`). **Caveat: the "culling isn't it" test was run against
    a broken shader and proved nothing — culling tests only mean something
    with a working shader.**
+   **Same trap for glTF/GLB:** glTF is CCW-front in its right-handed space,
+   which is the *opposite* of what Vulkan's y-down framebuffer wants — front
+   faces get culled and you see the far faces through the model (reads as
+   "upside down" / see-through). Fix: reverse every triangle's indices at
+   load (`std::swap(i+1, i+2)`).
 3. **Red herring:** the "vertex attribute at location N not consumed by
    vertex shader" validation error is *not* fatal — the working demos have
    it (Slang DCEs unused inputs). Don't chase it.
@@ -142,12 +147,19 @@ fence after the submit. Skip a barrier and you get garbage-or-nothing, silently.
 1. **Enable validation layers** — this saga's first two bugs were caught
    instantly by validation; without it they're hours of gray screens. Build
    with `-DCMAKE_BUILD_TYPE=Debug` (DebugEnabled is compiled out in Release).
-2. **Isolate with a known-good draw** — draw `createTriangleTestMesh` (known
+2. **Flaky segfaults from callbacks**: a demo without `initImgui` crashed
+   intermittently in `ImGui_ImplGlfw_KeyCallback` — BGL's input forwarding
+   called ImGui's callbacks even with no ImGui context. Guard with
+   `if (ImGui::GetCurrentContext())` before forwarding. (gdb backtrace of the
+   core dump revealed it — `coredumpctl` + `gdb -batch -ex bt`.)
+3. **Sampler `maxLod`** — for single-mip textures set `.maxLod = 0.0f`;
+   `1.0f` lets the driver target a nonexistent mip → undefined behavior.
+4. **Isolate with a known-good draw** — draw `createTriangleTestMesh` (known
    to work) next to the suspect to split "draw path" vs "texture path".
-3. **Read the SPIR-V** — `spirv-dis out.spv | grep Binding` reveals the
+5. **Read the SPIR-V** — `spirv-dis out.spv | grep Binding` reveals the
    actual descriptor bindings; `grep OpMatrixTimesVector` reveals mul
    semantics.
-4. **Read the pixels** — if you can't see the screen, screenshot + decode
+6. **Read the pixels** — if you can't see the screen, screenshot + decode
    the PNG (Python: struct+zlib, unfilter scanlines) to sample actual
    framebuffer colors. This ended the "impossible quadrant colors" mystery
    (which turned out to be unbound-memory reads from a non-static const).
@@ -172,6 +184,15 @@ fence after the submit. Skip a barrier and you get garbage-or-nothing, silently.
   (cross product collapses to NaN).
 - Camera holds view data only; fov/aspect/near/far live in the user's
   projection. That's by design.
+
+- **Requesting arbitrary Vulkan features/extensions without editing BGL** —
+  `EngineSettings.features.request<T>(...)` copies any
+  `VkPhysicalDevice*Features` struct into aligned storage, and device
+  creation chains them into `vkCreateDevice` via the `sType@0 / pNext@8`
+  layout shared by every Vk struct (`VkBaseInStructure`). Extensions go in
+  `EngineSettings.deviceExtensions` (swapchain is auto-added). Contracts:
+  you set `.sType`, and requesting something unsupported fails device
+  creation.
 
 ## Process
 

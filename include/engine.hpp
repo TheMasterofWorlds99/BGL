@@ -10,6 +10,8 @@
 #include <GLFW/glfw3.h>
 #include <array>
 #include <cstdint>
+#include <cstring>
+#include <deque>
 #include <glm/glm.hpp>
 #include <vector>
 
@@ -86,11 +88,44 @@ struct Window {
 };
 
 // Settings struct to allow for easy modifying of the engine
+
+// Storage for one arbitrary VkPhysicalDevice*Features struct. Every Vulkan
+// feature struct starts with sType (offset 0) and pNext (offset 8), so the
+// engine can chain any of them without knowing the concrete type.
+struct FeatureBlock {
+  alignas(16) std::array<uint8_t, 128> data;
+  size_t size = 0;
+};
+
+// A list of arbitrary Vulkan feature structs to chain into vkCreateDevice's
+// pNext. Request features with the typed request<T> helper — no need to ever
+// edit BGL to enable a new feature; just request it here.
+struct FeatureRequests {
+  std::deque<FeatureBlock> storage; // deque: stable addresses as it grows
+
+  // Copy any VkPhysicalDevice*Features struct into the list and return a
+  // reference to the stored copy (so the caller can tweak it after). Remember
+  // to set .sType yourself — that's the one contract.
+  template <typename T>
+  T &request(const T &features) {
+    static_assert(sizeof(T) <= 128, "feature struct too large for the block");
+    storage.push_back(FeatureBlock{});
+    auto &block = storage.back();
+    std::memcpy(block.data.data(), &features, sizeof(T));
+    block.size = sizeof(T);
+    return *reinterpret_cast<T *>(block.data.data());
+  }
+};
+
 struct EngineSettings {
   PresentMode presentMode = PresentMode::VSync;
   VkFormat swapchainFormat = VK_FORMAT_R8G8B8A8_SRGB;
   VkSampleCountFlagBits MSAASamples = VK_SAMPLE_COUNT_1_BIT;
   bool validation = true;
+
+  FeatureRequests features; // arbitrary feature structs (ray query, BLAS, ...)
+  std::vector<const char *> deviceExtensions; // extra extensions (swapchain
+                                              // is always added)
 };
 
 // Window helpers

@@ -235,8 +235,24 @@ void createLogicalGPUDeviceAndQueue(Engine &engine) {
   // Get desired gpu features + swapcahin extension (to enable drawing to the
   // window)
   GPUFeatures features = getDesiredGPUFeatures();
-  const std::vector<const char *> deviceExtensions{
+
+  // Engine-required extensions + anything the project requested
+  std::vector<const char *> deviceExtensions{
       VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+  deviceExtensions.insert(deviceExtensions.end(),
+                          engine.settings.deviceExtensions.begin(),
+                          engine.settings.deviceExtensions.end());
+
+  // Chain the project's requested feature structs after the base features.
+  // Every Vk struct has sType@0 and pNext@8, so we can link any of them.
+  VkBaseInStructure *tail =
+      reinterpret_cast<VkBaseInStructure *>(&features.features13);
+  for (auto &block : engine.settings.features.storage) {
+    auto *node = reinterpret_cast<VkBaseInStructure *>(block.data.data());
+    tail->pNext = node;
+    node->pNext = nullptr;
+    tail = node;
+  }
 
   const VkDeviceQueueCreateInfo queueCreateInfo = getQueueCreationInfo(engine);
 

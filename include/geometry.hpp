@@ -5,6 +5,7 @@
 
 // Other Includes
 #include "memory.hpp"
+#include "texture.hpp"
 #include <cstdint>
 #include <tiny_obj_loader.h>
 #include <vector>
@@ -67,6 +68,20 @@ GPUMesh createGPUMesh(VmaAllocator allocator, std::vector<Vertex> vertices,
 
 // A little function that allows us to load mesh data from a .obj file!
 GPUMesh loadMeshFromObj(VmaAllocator allocator, const char *path);
+
+// Load mesh data from a binary glTF (.glb) file — positions/normals/UVs/indices
+GPUMesh loadMeshFromGlb(VmaAllocator allocator, const char *path);
+
+// One drawable primitive of a glb: its mesh plus its base-color texture
+// (empty/absent if the material has none)
+struct GlbPrimitive {
+  GPUMesh mesh;
+  Texture baseColor;
+  bool hasTexture = false;
+};
+
+// Load a glb with its base-color textures applied (per primitive)
+std::vector<GlbPrimitive> loadGlb(Engine &engine, const char *path);
 
 // Quick and simply triangle test mesh creation function for testing
 GPUMesh createTriangleTestMesh(VmaAllocator allocator);

@@ -1,6 +1,7 @@
 #include "../include/geometry.hpp"
 #include "../include/memory.hpp"
 #include "../include/engine.hpp"
+#include <cstring>
 #include <iostream>
 #include <tiny_obj_loader.h>
 #include <unordered_map>
@@ -145,4 +146,200 @@ GPUMesh createTriangleTestMesh(VmaAllocator allocator) {
   // Order to connect vertices to form CCW triangle
   std::vector<uint32_t> indices = {0, 1, 2};
   return createGPUMesh(allocator, vertices, indices);
+}
+
+// ---------------------------------------------------------------------------
+// glTF (.glb) loading via tinygltf
+// ---------------------------------------------------------------------------
+
+#include <tiny_gltf.h>
+
+// Read one attribute (e.g. "POSITION") from a primitive into floats.
+// Handles float and normalized u16/u8 component types, and bufferView strides.
+static bool readGlbAttribute(const tinygltf::Model &model,
+                             const tinygltf::Primitive &prim,
+                             const std::string &name,
+                             std::vector<float> &out, int &numComps) {
+  auto it = prim.attributes.find(name);
+  if (it == prim.attributes.end())
+    return false;
+  const tinygltf::Accessor &acc = model.accessors[it->second];
+  const tinygltf::BufferView &bv = model.bufferViews[acc.bufferView];
+  const tinygltf::Buffer &buf = model.buffers[bv.buffer];
+
+  numComps = tinygltf::GetNumComponentsInType(acc.type);
+  size_t compSize = tinygltf::GetComponentSizeInBytes(acc.componentType);
+  size_t stride = bv.byteStride ? bv.byteStride : numComps * compSize;
+  const unsigned char *base = buf.data.data() + bv.byteOffset + acc.byteOffset;
+
+  out.resize(acc.count * numComps);
+  for (size_t i = 0; i < acc.count; i++) {
+    const unsigned char *p = base + i * stride;
+    for (int c = 0; c < numComps; c++) {
+      float v = 0.0f;
+      switch (acc.componentType) {
+      case TINYGLTF_COMPONENT_TYPE_FLOAT:
+        std::memcpy(&v, p + c * compSize, 4);
+        break;
+      case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT: { // normalized
+        uint16_t raw;
+        std::memcpy(&raw, p + c * 2, 2);
+        v = raw / 65535.0f;
+        break;
+      }
+      case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE: { // normalized
+        v = p[c] / 255.0f;
+        break;
+      }
+      default:
+        break;
+      }
+      out[i * numComps + c] = v;
+    }
+  }
+  return true;
+}
+
+// Read the primitive's index buffer (u8/u16/u32) into uint32s
+static bool readGlbIndices(const tinygltf::Model &model,
+                           const tinygltf::Primitive &prim,
+                           std::vector<uint32_t> &out) {
+  if (prim.indices < 0)
+    return false;
+  const tinygltf::Accessor &acc = model.accessors[prim.indices];
+  const tinygltf::BufferView &bv = model.bufferViews[acc.bufferView];
+  const tinygltf::Buffer &buf = model.buffers[bv.buffer];
+  const unsigned char *base = buf.data.data() + bv.byteOffset + acc.byteOffset;
+
+  out.resize(acc.count);
+  for (size_t i = 0; i < acc.count; i++) {
+    switch (acc.componentType) {
+    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
+      std::memcpy(&out[i], base + i * 4, 4);
+      break;
+    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT: {
+      uint16_t s;
+      std::memcpy(&s, base + i * 2, 2);
+      out[i] = s;
+      break;
+    }
+    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
+      out[i] = base[i];
+      break;
+    default:
+      break;
+    }
+  }
+  return true;
+}
+
+GPUMesh loadMeshFromGlb(VmaAllocator allocator, const char *path) {
+  tinygltf::Model model;
+  tinygltf::TinyGLTF loader;
+  std::string err, warn;
+  if (!loader.LoadBinaryFromFile(&model, &err, &warn, path)) {
+    std::cerr << "GLB load failed: " << err << "\n";
+    exit(EXIT_FAILURE);
+  }
+
+  std::vector<Vertex> vertices;
+  std::vector<uint32_t> indices;
+
+  for (const auto &mesh : model.meshes) {
+    for (const auto &prim : mesh.primitives) {
+      std::vector<float> pos, nrm, uv;
+      int npos = 0, nnrm = 0, nuv = 0;
+      if (!readGlbAttribute(model, prim, "POSITION", pos, npos))
+        continue;
+      bool hasNrm = readGlbAttribute(model, prim, "NORMAL", nrm, nnrm);
+      bool hasUv = readGlbAttribute(model, prim, "TEXCOORD_0", uv, nuv);
+
+      std::vector<uint32_t> primIndices;
+      readGlbIndices(model, prim, primIndices);
+
+      uint32_t base = static_cast<uint32_t>(vertices.size());
+      size_t count = pos.size() / npos;
+      for (size_t i = 0; i < count; i++) {
+        Vertex v{};
+        v.pos = {pos[i * npos + 0], pos[i * npos + 1], pos[i * npos + 2]};
+        if (hasNrm)
+          v.normal = {nrm[i * nnrm + 0], nrm[i * nnrm + 1], nrm[i * nnrm + 2]};
+        if (hasUv)
+          v.uv = {uv[i * nuv + 0], uv[i * nuv + 1]};
+        vertices.push_back(v);
+      }
+      for (uint32_t idx : primIndices)
+        indices.push_back(base + idx);
+    }
+  }
+
+  return createGPUMesh(allocator, vertices, indices);
+}
+
+// Build a GPU mesh from one glTF primitive (shared by the glb loaders)
+static GPUMesh meshFromPrimitive(VmaAllocator allocator,
+                                 const tinygltf::Model &model,
+                                 const tinygltf::Primitive &prim) {
+  std::vector<float> pos, nrm, uv;
+  int npos = 0, nnrm = 0, nuv = 0;
+  if (!readGlbAttribute(model, prim, "POSITION", pos, npos))
+    return createGPUMesh(allocator, {}, {});
+  bool hasNrm = readGlbAttribute(model, prim, "NORMAL", nrm, nnrm);
+  bool hasUv = readGlbAttribute(model, prim, "TEXCOORD_0", uv, nuv);
+
+  std::vector<uint32_t> primIndices;
+  readGlbIndices(model, prim, primIndices);
+
+  std::vector<Vertex> vertices;
+  vertices.reserve(pos.size() / npos);
+  size_t count = pos.size() / npos;
+  for (size_t i = 0; i < count; i++) {
+    Vertex v{};
+    // Negate Y: this glTF's Y axis is inverted relative to the engine's
+    // camera convention (the reflection also fixes the winding, so no index
+    // swap is needed).
+    v.pos = {pos[i * npos + 0], -pos[i * npos + 1], pos[i * npos + 2]};
+    if (hasNrm)
+      v.normal = {nrm[i * nnrm + 0], nrm[i * nnrm + 1], nrm[i * nnrm + 2]};
+    if (hasUv)
+      v.uv = {uv[i * nuv + 0], uv[i * nuv + 1]};
+    vertices.push_back(v);
+  }
+  return createGPUMesh(allocator, vertices, primIndices);
+}
+
+std::vector<GlbPrimitive> loadGlb(Engine &engine, const char *path) {
+  tinygltf::Model model;
+  tinygltf::TinyGLTF loader;
+  std::string err, warn;
+  if (!loader.LoadBinaryFromFile(&model, &err, &warn, path)) {
+    std::cerr << "GLB load failed: " << err << "\n";
+    exit(EXIT_FAILURE);
+  }
+
+  std::vector<GlbPrimitive> out;
+  for (const auto &mesh : model.meshes) {
+    for (const auto &prim : mesh.primitives) {
+      GlbPrimitive g;
+      g.mesh = meshFromPrimitive(engine.allocator, model, prim);
+
+      // Base-color texture from the primitive's material
+      if (prim.material >= 0) {
+        const auto &mat = model.materials[prim.material];
+        int texIndex = mat.pbrMetallicRoughness.baseColorTexture.index;
+        if (texIndex >= 0 && texIndex < static_cast<int>(model.textures.size())) {
+          int imgIndex = model.textures[texIndex].source;
+          if (imgIndex >= 0 && imgIndex < static_cast<int>(model.images.size())) {
+            const auto &img = model.images[imgIndex];
+            // tinygltf decodes images to RGBA8 via stb
+            g.baseColor = createTexture(engine, img.width, img.height,
+                                        img.image.data());
+            g.hasTexture = true;
+          }
+        }
+      }
+      out.push_back(std::move(g));
+    }
+  }
+  return out;
 }

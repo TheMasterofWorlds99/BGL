@@ -64,6 +64,12 @@ FetchContent_Declare(
   GIT_TAG release
 )
 
+FetchContent_Declare(
+  tinygltf
+  GIT_REPOSITORY https://github.com/syoyo/tinygltf.git
+  GIT_TAG v2.9.5
+)
+
 FetchContent_MakeAvailable(
     glfw
     volk
@@ -72,6 +78,7 @@ FetchContent_MakeAvailable(
     glm
     slang
     tinyobjloader
+    tinygltf
 )
 
 # Setup ImGui library
@@ -101,12 +108,14 @@ add_library(BGL1 STATIC
     src/volkVma.cpp
     src/imgui.cpp
     src/texture.cpp
+    src/tinygltf.cpp
 )
 
 target_include_directories(BGL1
   PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${vma_SOURCE_DIR}/include
+    ${tinygltf_SOURCE_DIR}
   PRIVATE
     ${slang_SOURCE_DIR}/include
 )
@@ -169,6 +178,9 @@ target_link_libraries(windowOrbitDemo PRIVATE BGL1)
 
 add_executable(textureTest src/demos/textureTest.cpp src/demos/textureTestMain.cpp)
 target_link_libraries(textureTest PRIVATE BGL1)
+
+add_executable(glbTest src/demos/glbTest.cpp src/demos/glbTestMain.cpp)
+target_link_libraries(glbTest PRIVATE BGL1)
 
 add_executable(galleryDemo src/demos/galleryDemo.cpp src/demos/galleryDemoMain.cpp)
 target_link_libraries(galleryDemo PRIVATE BGL1)
